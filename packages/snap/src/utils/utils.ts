@@ -36,34 +36,15 @@ const FUNCTION_SIGNATURES = [
   },
 ];
 
-/**
- * Decode the transaction data. This checks the signature of the function that
- * is being called, and returns the type of transaction.
- *
- * @param data - The transaction data. This is expected to be a hex string,
- * containing the function signature and the parameters.
- * @returns The type of transaction, or "Unknown," if the function signature
- * does not match any known signatures.
- */
-export function decodeData(data: string) {
-  const normalisedData = remove0x(data);
-  const signature = normalisedData.slice(0, 8);
-
-  const functionSignature = FUNCTION_SIGNATURES.find(
-    (value) => value.signature === signature,
-  );
-  return functionSignature?.name ?? 'Unknown';
-}
-
 export const isEthereumAddress = (address: string) => {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
 };
 
-export async function authenticateHashDit(persistedUserData: any) {
+export async function authenticateHashDit(persistedUserData: any, signature: any) {
   const timestamp = Date.now();
   const nonce = uuidv4().replace(/-/g, '');
   const appId = persistedUserData.userAddress;
-  const appSecret = persistedUserData.messageSignature;
+  const appSecret = signature;
 
   const response = await fetch(
     'https://api.hashdit.io/security-api/public/chain/v1/web3/signature',
@@ -95,6 +76,8 @@ export async function getHashDitResponse(
   transaction?: any,
   chainId?: string,
 ) {
+  console.log(JSON.stringify(persistedUserData));
+
   const trace_id = uuidv4();
 
   // formatting chainid to match api formatting
@@ -162,14 +145,48 @@ export async function getHashDitResponse(
     nonce,
     signatureFinal,
   );
-  return formatResponse(response, businessName, transactionUrl);
+  return formatResponse(response, businessName);
+}
+
+async function customFetch(
+  url: URL,
+  postBody: any,
+  appId: string,
+  timestamp: number,
+  nonce: any,
+  signatureFinal: any,
+) {
+
+
+  const response = await fetch(url, {
+    method: 'POST',
+    mode: 'cors',
+    cache: 'no-cache',
+    credentials: 'same-origin',
+    headers: {
+      'Content-Type': 'application/json;charset=UTF-8',
+      'X-Signature-appid': appId,
+      'X-Signature-timestamp': timestamp.toString(),
+      'X-Signature-nonce': nonce,
+      'X-Signature-signature': signatureFinal,
+    },
+    redirect: 'follow',
+    referrerPolicy: 'no-referrer',
+    body: JSON.stringify(postBody),
+  });
+
+  const resp = await response.json();
+  if (resp.status == 'OK' && resp.data) {
+    return resp.data;
+  } else {
+    //console.log('Fetch api error: ' + resp.errorData);
+  }
 }
 
 // Format the HashDit API response to get the important risk details
 function formatResponse(
   resp: any,
   businessName: string,
-  transactionUrl: string,
 ) {
   let responseData: any = {
     overall_risk: -1,
@@ -178,8 +195,6 @@ function formatResponse(
     url_risk_level: 'Unknown',
     url_risk_detail: 'Unknown',
     function_name: '',
-    function_param1: '',
-    function_param2: '',
     transaction_risk_detail: 'None found',
   };
 
@@ -225,7 +240,7 @@ function formatResponse(
         const paramsCopy = [...resp.detection_result.params];
 
         responseData.function_name = resp.detection_result.function_name;
-        responseData.function_params = paramsCopy;
+        responseData.function_params = paramsCopy; //TODO: Specify in responseData?
       } catch {
         //console.log('No params');
       }
@@ -245,44 +260,13 @@ function formatResponse(
   return responseData;
 }
 
-async function customFetch(
-  url: URL,
-  postBody: any,
-  appId: string,
-  timestamp: number,
-  nonce: any,
-  signatureFinal: any,
-) {
-  const response = await fetch(url, {
-    method: 'POST',
-    mode: 'cors',
-    cache: 'no-cache',
-    credentials: 'same-origin',
-    headers: {
-      'Content-Type': 'application/json;charset=UTF-8',
-      'X-Signature-appid': appId,
-      'X-Signature-timestamp': timestamp.toString(),
-      'X-Signature-nonce': nonce,
-      'X-Signature-signature': signatureFinal,
-    },
-    redirect: 'follow',
-    referrerPolicy: 'no-referrer',
-    body: JSON.stringify(postBody),
-  });
-
-  const resp = await response.json();
-  if (resp.status == 'OK' && resp.data) {
-    return resp.data;
-  } else {
-    //console.log('Fetch api error: ' + resp.errorData);
-  }
-}
 
 // Parse transacting value to decimals to be human-readable
 export function parseTransactingValue(transactionValue: any) {
   let valueAsDecimals = 0;
   valueAsDecimals = parseInt(transactionValue, 16);
-  valueAsDecimals = valueAsDecimals / 1e18; // Assumes 18 decimal places for native token
+  // Assumes 18 decimal places for native token
+  valueAsDecimals = valueAsDecimals / 1e18; 
   return valueAsDecimals;
 }
 

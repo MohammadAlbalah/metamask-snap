@@ -3,7 +3,6 @@ import type {
   OnInstallHandler,
   OnHomePageHandler,
   OnRpcRequestHandler,
-  OnCronjobHandler,
 } from '@metamask/snaps-sdk';
 import {
   heading,
@@ -82,15 +81,17 @@ export const onInstall: OnInstallHandler = async () => {
     publicKey = publicKey.substring(2);
 
     try {
-      // Save public key here and user address here:
+      // Save public key and user address in snap storage
+      const newPersistedDataDict = {
+        publicKey: publicKey,
+        userAddress: from,
+      };
       await snap.request({
         method: 'snap_manageState',
         params: {
           operation: 'update',
           newState: {
-            publicKey: publicKey,
-            userAddress: from,
-            messageSignature: signature,
+            newPersistedDataDict
           },
         },
       });
@@ -102,28 +103,29 @@ export const onInstall: OnInstallHandler = async () => {
         params: { operation: 'get' },
       });
 
-      await authenticateHashDit(persistedData); // call HashDit API to authenticate user
+      await authenticateHashDit(persistedData, signature);
+      // TODO: Add error handling messages
     } catch (error) {}
     return true;
   } catch (error) {}
 };
 
-export const onCronjob: OnCronjobHandler = async ({ request }) => {
-  switch (request.method) {
-    case 'execute':
-      // Cron jobs can execute any method that is available to the Snap.
-      return snap.request({
-        method: 'snap_notify',
-        params: {
-          type: 'native',
-          message: 'Native Hello, world!',
-        },
-      });
+// export const onCronjob: OnCronjobHandler = async ({ request }) => {
+//   switch (request.method) {
+//     case 'execute':
+//       // Cron jobs can execute any method that is available to the Snap.
+//       return snap.request({
+//         method: 'snap_notify',
+//         params: {
+//           type: 'native',
+//           message: 'Native Hello, world!',
+//         },
+//       });
 
-    default:
-      throw new Error('Method not found.');
-  }
-};
+//     default:
+//       throw new Error('Method not found.');
+//   }
+// };
 
 // Handle outgoing transactions.
 export const onTransaction: OnTransactionHandler = async ({
@@ -329,13 +331,13 @@ export const onTransaction: OnTransactionHandler = async ({
   // Current chain is not supported (Not BSC and not ETH). Smart Contract Interaction.
   if (chainId !== '0x38' && chainId !== '0x1') {
     // Retrieve saved user's public key to make HashDit API call
-    const persistedUserData = await snap.request({
+    const persistedUserPublicKey = await snap.request({
       method: 'snap_manageState',
       params: { operation: 'get' },
     });
 
     let contentArray: any[] = [];
-    if (persistedUserData !== null) {
+    if (persistedUserPublicKey !== null) {
       const poisonResultArray = addressPoisoningDetection(accounts, [
         transaction.to,
       ]);
@@ -345,7 +347,7 @@ export const onTransaction: OnTransactionHandler = async ({
       // URL Screening call
       const urlRespData = await getHashDitResponse(
         'hashdit_snap_tx_api_url_detection',
-        persistedUserData,
+        persistedUserPublicKey,
         transactionOrigin,
       );
       contentArray = [
