@@ -16,26 +16,6 @@ import {
   row,
 } from '@metamask/snaps-sdk';
 
-/**
- * The function signatures for the different types of transactions. This is used
- * to determine the type of transaction. This list is not exhaustive, and only
- * contains the most common types of transactions for demonstration purposes.
- */
-const FUNCTION_SIGNATURES = [
-  {
-    name: 'ERC-20',
-    signature: 'a9059cbb',
-  },
-  {
-    name: 'ERC-721',
-    signature: '23b872dd',
-  },
-  {
-    name: 'ERC-1155',
-    signature: 'f242432a',
-  },
-];
-
 export const isEthereumAddress = (address: string) => {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
 };
@@ -76,7 +56,6 @@ export async function getHashDitResponse(
   transaction?: any,
   chainId?: string,
 ) {
-  console.log(JSON.stringify(persistedUserData));
 
   const trace_id = uuidv4();
 
@@ -133,6 +112,29 @@ export async function getHashDitResponse(
   dataToSign = `${appId};${timestamp};${nonce};POST;/security-api/public/chain/v1/web3/detect;${query};${JSON.stringify(
     postBody,
   )}`;
+  
+  if(businessName == 'hashdit_snap_tx_api_url_detection'){
+    const dataKey = JSON.stringify(postBody);
+    const persistedData = await snap.request({
+      method: 'snap_manageState',
+      params: { operation: 'get' },
+    });
+
+    // TODO: Handle when persistedData is null and we reach customFetch. We need to read persistedData again in customFetch.
+    if(persistedData != null){
+      if(dataKey in persistedData){
+        console.log("Item found in cache")
+        return persistedData[transactionUrl];
+      }
+    }
+
+    console.log("Item not found in cache")
+    
+  } 
+  
+  
+
+  
 
   const signature = hmacSHA256(dataToSign, appSecret);
   const signatureFinal = encHex.stringify(signature);
@@ -144,6 +146,7 @@ export async function getHashDitResponse(
     timestamp,
     nonce,
     signatureFinal,
+    transactionUrl,
   );
   return formatResponse(response, businessName);
 }
@@ -155,6 +158,7 @@ async function customFetch(
   timestamp: number,
   nonce: any,
   signatureFinal: any,
+  transactionUrl: string,
 ) {
 
 
@@ -177,6 +181,26 @@ async function customFetch(
 
   const resp = await response.json();
   if (resp.status == 'OK' && resp.data) {
+
+    const persistedData = await snap.request({
+      method: 'snap_manageState',
+      params: { operation: 'get' },
+    });
+
+    if(persistedData!=null){
+      console.log("Retrieve", JSON.stringify(persistedData));
+      persistedData[transactionUrl] = resp.data;
+      console.log("New data added", JSON.stringify(persistedData));
+      await snap.request({
+        method: 'snap_manageState',
+        params: {
+          operation: 'update',
+          newState:persistedData,
+        },
+      });
+    }
+
+    
     return resp.data;
   } else {
     //console.log('Fetch api error: ' + resp.errorData);

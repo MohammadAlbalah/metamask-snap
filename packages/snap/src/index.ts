@@ -82,16 +82,14 @@ export const onInstall: OnInstallHandler = async () => {
 
     try {
       // Save public key and user address in snap storage
-      const newPersistedDataDict = {
-        publicKey: publicKey,
-        userAddress: from,
-      };
+
       await snap.request({
         method: 'snap_manageState',
         params: {
           operation: 'update',
           newState: {
-            newPersistedDataDict
+            publicKey: publicKey,
+            userAddress: from,
           },
         },
       });
@@ -151,14 +149,14 @@ export const onTransaction: OnTransactionHandler = async ({
     // Current chain is not supported (not BSC or ETH). Native Token Transfer.
     if (chainId !== '0x38' && chainId !== '0x1') {
       // Retrieve saved user's public key to make HashDit API call
-      const persistedUserPublicKey = await snap.request({
+      const persistedData = await snap.request({
         method: 'snap_manageState',
         params: { operation: 'get' },
       });
 
       let contentArray: any[] = [];
       var urlRespData;
-      if (persistedUserPublicKey !== null) {
+      if (persistedData !== null) {
         const poisonResultArray = addressPoisoningDetection(accounts, [
           transaction.to,
         ]);
@@ -169,7 +167,7 @@ export const onTransaction: OnTransactionHandler = async ({
         // URL Screening call
         urlRespData = await getHashDitResponse(
           'hashdit_snap_tx_api_url_detection',
-          persistedUserPublicKey,
+          persistedData,
           transactionOrigin,
         );
         contentArray.push(
@@ -222,7 +220,7 @@ export const onTransaction: OnTransactionHandler = async ({
     // Current chain is supported (BSC or ETH). Native Token Transfer.
     else {
       // Retrieve saved user's public key to make HashDit API call
-      const persistedUserPublicKey = await snap.request({
+      const persistedData = await snap.request({
         method: 'snap_manageState',
         params: { operation: 'get' },
       });
@@ -230,7 +228,7 @@ export const onTransaction: OnTransactionHandler = async ({
       let contentArray: any[] = [];
       var respData;
       var urlRespData;
-      if (persistedUserPublicKey !== null) {
+      if (persistedData !== null) {
         const poisonResultArray = addressPoisoningDetection(accounts, [
           transaction.to,
         ]);
@@ -243,14 +241,14 @@ export const onTransaction: OnTransactionHandler = async ({
         const [respData, urlRespData] = await Promise.all([
           getHashDitResponse(
             'internal_address_lables_tags',
-            persistedUserPublicKey,
+            persistedData,
             transactionOrigin,
             transaction,
             chainId,
           ),
           getHashDitResponse(
             'hashdit_snap_tx_api_url_detection',
-            persistedUserPublicKey,
+            persistedData,
             transactionOrigin,
           ),
         ]);
@@ -331,13 +329,13 @@ export const onTransaction: OnTransactionHandler = async ({
   // Current chain is not supported (Not BSC and not ETH). Smart Contract Interaction.
   if (chainId !== '0x38' && chainId !== '0x1') {
     // Retrieve saved user's public key to make HashDit API call
-    const persistedUserPublicKey = await snap.request({
+    const persistedData = await snap.request({
       method: 'snap_manageState',
       params: { operation: 'get' },
     });
 
     let contentArray: any[] = [];
-    if (persistedUserPublicKey !== null) {
+    if (persistedData !== null) {
       const poisonResultArray = addressPoisoningDetection(accounts, [
         transaction.to,
       ]);
@@ -347,7 +345,7 @@ export const onTransaction: OnTransactionHandler = async ({
       // URL Screening call
       const urlRespData = await getHashDitResponse(
         'hashdit_snap_tx_api_url_detection',
-        persistedUserPublicKey,
+        persistedData,
         transactionOrigin,
       );
       contentArray = [
@@ -390,34 +388,34 @@ export const onTransaction: OnTransactionHandler = async ({
   } else {
     // Current chain is supported (BSC and ETH). Smart Contract Interaction.
     // Retrieve saved user's public key to make HashDit API call
-    const persistedUserPublicKey = await snap.request({
+    const persistedData = await snap.request({
       method: 'snap_manageState',
       params: { operation: 'get' },
     });
 
     let contentArray: any[] = [];
-    if (persistedUserPublicKey !== null) {
+    if (persistedData !== null) {
       //TODO: Test if promise.all is faster than seperate calls.
       // ... calls
       const [interactionRespData, addressRespData, urlRespData] =
         await Promise.all([
           getHashDitResponse(
             'hashdit_snap_tx_api_transaction_request',
-            persistedUserPublicKey,
+            persistedData,
             transactionOrigin,
             transaction,
             chainId,
           ),
           getHashDitResponse(
             'internal_address_lables_tags',
-            persistedUserPublicKey,
+            persistedData,
             transactionOrigin,
             transaction,
             chainId,
           ),
           getHashDitResponse(
             'hashdit_snap_tx_api_url_detection',
-            persistedUserPublicKey,
+            persistedData,
             transactionOrigin,
           ),
         ]);
