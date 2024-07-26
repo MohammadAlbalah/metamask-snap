@@ -20,7 +20,10 @@ export const isEthereumAddress = (address: string) => {
   return /^0x[a-fA-F0-9]{40}$/.test(address);
 };
 
-export async function authenticateHashDit(persistedUserData: any, signature: any) {
+export async function authenticateHashDit(
+  persistedUserData: any,
+  signature: any,
+) {
   const timestamp = Date.now();
   const nonce = uuidv4().replace(/-/g, '');
   const appId = persistedUserData.userAddress;
@@ -56,7 +59,6 @@ export async function getHashDitResponse(
   transaction?: any,
   chainId?: string,
 ) {
-
   const trace_id = uuidv4();
 
   // formatting chainid to match api formatting
@@ -112,8 +114,8 @@ export async function getHashDitResponse(
   dataToSign = `${appId};${timestamp};${nonce};POST;/security-api/public/chain/v1/web3/detect;${query};${JSON.stringify(
     postBody,
   )}`;
-  
-  if(businessName == 'hashdit_snap_tx_api_url_detection'){
+
+  if (businessName == 'hashdit_snap_tx_api_url_detection') {
     const dataKey = JSON.stringify(postBody);
     const persistedData = await snap.request({
       method: 'snap_manageState',
@@ -121,20 +123,15 @@ export async function getHashDitResponse(
     });
 
     // TODO: Handle when persistedData is null and we reach customFetch. We need to read persistedData again in customFetch.
-    if(persistedData != null){
-      if(dataKey in persistedData){
-        console.log("Item found in cache")
+    if (persistedData != null) {
+      if (dataKey in persistedData) {
+        console.log('Item found in cache');
         return persistedData[transactionUrl];
       }
     }
 
-    console.log("Item not found in cache")
-    
-  } 
-  
-  
-
-  
+    console.log('Item not found in cache');
+  }
 
   const signature = hmacSHA256(dataToSign, appSecret);
   const signatureFinal = encHex.stringify(signature);
@@ -160,8 +157,6 @@ async function customFetch(
   signatureFinal: any,
   transactionUrl: string,
 ) {
-
-
   const response = await fetch(url, {
     method: 'POST',
     mode: 'cors',
@@ -181,26 +176,24 @@ async function customFetch(
 
   const resp = await response.json();
   if (resp.status == 'OK' && resp.data) {
-
     const persistedData = await snap.request({
       method: 'snap_manageState',
       params: { operation: 'get' },
     });
 
-    if(persistedData!=null){
-      console.log("Retrieve", JSON.stringify(persistedData));
+    if (persistedData != null) {
+      console.log('Retrieve', JSON.stringify(persistedData));
       persistedData[transactionUrl] = resp.data;
-      console.log("New data added", JSON.stringify(persistedData));
+      console.log('New data added', JSON.stringify(persistedData));
       await snap.request({
         method: 'snap_manageState',
         params: {
           operation: 'update',
-          newState:persistedData,
+          newState: persistedData,
         },
       });
     }
 
-    
     return resp.data;
   } else {
     //console.log('Fetch api error: ' + resp.errorData);
@@ -208,10 +201,7 @@ async function customFetch(
 }
 
 // Format the HashDit API response to get the important risk details
-function formatResponse(
-  resp: any,
-  businessName: string,
-) {
+function formatResponse(resp: any, businessName: string) {
   let responseData: any = {
     overall_risk: -1,
     overall_risk_title: 'Unknown',
@@ -284,13 +274,12 @@ function formatResponse(
   return responseData;
 }
 
-
 // Parse transacting value to decimals to be human-readable
 export function parseTransactingValue(transactionValue: any) {
   let valueAsDecimals = 0;
   valueAsDecimals = parseInt(transactionValue, 16);
   // Assumes 18 decimal places for native token
-  valueAsDecimals = valueAsDecimals / 1e18; 
+  valueAsDecimals = valueAsDecimals / 1e18;
   return valueAsDecimals;
 }
 
